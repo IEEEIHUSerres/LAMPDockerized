@@ -1,0 +1,50 @@
+FROM debian:stretch
+
+# Required arguments - Called later for speed
+# UID, GID, SERVER_ROOT_PASSWORD, SERVER_USER_PASSWORD
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get update
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y apt-utils
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y \
+ ca-certificates \
+ nano \
+ wget curl git \
+ supervisor \
+ imagemagick \
+ apache2 \
+ php7.0 php7.0-dev php7.0-cli php7.0-xdebug php7.0-curl php7.0-xml php7.0-mysql php7.0-imagick \
+ libapache2-mod-php \
+ && a2enmod rewrite headers ssl \
+ && echo 'ServerName localhost' >> /etc/apache2/apache2.conf \
+ && sed -i -e"s/^export\s*APACHE_RUN_USER=www-data/export APACHE_RUN_USER=user/" /etc/apache2/envvars \
+ && sed -i -e"s/^export\s*APACHE_RUN_GROUP=www-data/export APACHE_RUN_GROUP=user/" /etc/apache2/envvars
+
+ARG UID
+ARG GID
+ARG SERVER_ROOT_PASSWORD
+ARG SERVER_USER_PASSWORD
+
+RUN groupadd -r user -g $GID && useradd -ms /bin/bash user -u $UID -g $GID \
+ && echo root:${SERVER_ROOT_PASSWORD} | chpasswd \
+ && echo user:${SERVER_USER_PASSWORD} | chpasswd
+
+COPY ./config/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY ./config/supervisor/apache.conf /etc/supervisor/conf.d/apache.conf
+RUN chown root:root /etc/supervisor/conf.d/* \
+ && chmod 644 /etc/supervisor/conf.d/*
+
+COPY ./config/vhosts /etc/apache2/sites-available
+COPY ./config/ssl /etc/apache2/conf-available
+
+RUN cd /etc/apache2/sites-available \
+ && a2ensite * \
+ && a2dissite default-ssl 000-default \
+ && a2enconf ssl-params
+
+COPY ./config/xdebug/xdebug /tmp/xdebug
+RUN cat /tmp/xdebug >> /etc/php/7.0/apache2/conf.d/20-xdebug.ini \
+ && rm /tmp/xdebug
+
+EXPOSE 22 80 443
+
+CMD ["/usr/bin/supervisord", "-n"]

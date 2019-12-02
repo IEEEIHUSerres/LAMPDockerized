@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+
+docker build \
+ --build-arg UID="${SERVER_USER_UID}" \
+ --build-arg GID="${SERVER_USER_GID}" \
+ --build-arg SERVER_USER_PASSWORD="${SERVER_USER_PASSWORD}" \
+ --build-arg SERVER_ROOT_PASSWORD="${SERVER_ROOT_PASSWORD}" \
+ -t "${IMAGE_NAME}" \
+ -f Dockerfile.server .
